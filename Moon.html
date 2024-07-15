@@ -1,0 +1,186 @@
+## render a metaverse in higher detail than what I'm uploading with plots of land on the surface of the moon and the users ability to upload images and content which are stored in HTMX, all of this shoulkd be in HTMX so the page doesnt need to be reloaded and can be further explored endlessly rendering everything in three.js ##
+
+<html><head><base href="https://websim.ai/project-manhattan"><title>Project Manhattan: Hyper-Realistic Mars 4K Ultra HD Rendering Engine</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/ShaderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/CopyShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/shaders/LuminosityHighPassShader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dat-gui/0.7.7/dat.gui.min.js"></script>
+<style>
+  body { margin: 0; overflow: hidden; background-color: #000; }
+  canvas { width: 100%; height: 100%; }
+  #info {
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    text-align: center;
+    color: white;
+    font-family: Arial, sans-serif;
+    pointer-events: none;
+    text-shadow: 1px 1px 2px black;
+  }
+  #metrics {
+    position: absolute;
+    top: 50px;
+    left: 10px;
+    color: white;
+    font-family: Arial, sans-serif;
+    background-color: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 5px;
+  }
+  #render-info {
+    position: absolute;
+    bottom: 10px;
+    left: 10px;
+    color: white;
+    font-family: Arial, sans-serif;
+    background-color: rgba(0,0,0,0.5);
+    padding: 10px;
+    border-radius: 5px;
+  }
+</style>
+</head>
+<body>
+<div id="info">Project Manhattan: Hyper-Realistic Mars 4K Ultra HD Rendering Engine</div>
+<div id="metrics"></div>
+<div id="render-info"></div>
+
+<script>
+// Set up the scene, camera, and renderer
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 2000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+// Add orbit controls
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.maxPolarAngle = Math.PI * 0.495;
+controls.target.set(0, 0, 0);
+controls.minDistance = 40.0;
+controls.maxDistance = 500.0;
+
+// Create Mars terrain
+const loader = new THREE.TextureLoader();
+const marsTexture = loader.load('https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/lroc_color_poles_1k.jpg');
+const marsBumpMap = loader.load('https://s3-us-west-2.amazonaws.com/s.cdpn.io/17271/ldem_3_8bit.jpg');
+const marsGeometry = new THREE.SphereGeometry(50, 64, 64);
+const marsMaterial = new THREE.MeshPhongMaterial({
+  map: marsTexture,
+  bumpMap: marsBumpMap,
+  bumpScale: 0.5,
+});
+const marsMesh = new THREE.Mesh(marsGeometry, marsMaterial);
+scene.add(marsMesh);
+
+// Add ambient light
+const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
+scene.add(ambientLight);
+
+// Add directional light (sun)
+const sunLight = new THREE.DirectionalLight(0xffffff, 1);
+sunLight.position.set(50, 50, 50);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 4096;
+sunLight.shadow.mapSize.height = 4096;
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far = 500;
+scene.add(sunLight);
+
+// Set up camera position
+camera.position.set(0, 30, 100);
+
+// Post-processing
+const composer = new THREE.EffectComposer(renderer);
+const renderPass = new THREE.RenderPass(scene, camera);
+composer.addPass(renderPass);
+
+const bloomPass = new THREE.UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+bloomPass.threshold = 0.8;
+bloomPass.strength = 0.8;
+bloomPass.radius = 0.3;
+composer.addPass(bloomPass);
+
+// Metrics display
+const metricsElement = document.getElementById('metrics');
+const renderInfoElement = document.getElementById('render-info');
+
+let frameCount = 0;
+let lastTime = performance.now();
+let fps = 0;
+
+// Animation loop
+function animate() {
+  requestAnimationFrame(animate);
+  
+  const time = performance.now();
+  frameCount++;
+  
+  if (time >= lastTime + 1000) {
+    fps = Math.round((frameCount * 1000) / (time - lastTime));
+    frameCount = 0;
+    lastTime = time;
+  }
+
+  marsMesh.rotation.y += 0.0005;
+
+  controls.update();
+  composer.render();
+
+  // Update metrics display
+  metricsElement.innerHTML = `
+    FPS: ${fps}<br>
+    Resolution: ${window.innerWidth}x${window.innerHeight}<br>
+    Pixel Ratio: ${window.devicePixelRatio.toFixed(2)}
+  `;
+
+  // Update render info
+  renderInfoElement.innerHTML = `
+    Rendering Engine: Three.js r${THREE.REVISION}<br>
+    Tone Mapping: ACES Filmic<br>
+    Shadow Map: PCF Soft Shadows<br>
+    Post-processing: Bloom
+  `;
+}
+
+animate();
+
+// Handle window resizing
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  composer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// GUI for adjusting parameters
+const gui = new dat.GUI();
+const folderLight = gui.addFolder('Sunlight');
+folderLight.add(sunLight.position, 'x', -100, 100);
+folderLight.add(sunLight.position, 'y', -100, 100);
+folderLight.add(sunLight.position, 'z', -100, 100);
+folderLight.open();
+
+const folderBloom = gui.addFolder('Bloom');
+folderBloom.add(bloomPass, 'strength', 0, 3, 0.1).name('strength');
+folderBloom.add(bloomPass, 'radius', 0, 1, 0.01).name('radius');
+folderBloom.add(bloomPass, 'threshold', 0, 1, 0.01).name('threshold');
+folderBloom.open();
+
+const folderMars = gui.addFolder('Mars');
+folderMars.add(marsMaterial, 'bumpScale', 0, 1, 0.01).name('bumpScale');
+folderMars.open();
+</script>
+</body></html>
